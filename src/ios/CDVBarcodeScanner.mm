@@ -465,17 +465,24 @@ parentViewController:(UIViewController*)parentViewController
 }
 
 - (void)toggleTorch {
-  AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-  [device lockForConfiguration:nil];
-  if (device.flashActive) {
-    [device setTorchMode:AVCaptureTorchModeOff];
-    [device setFlashMode:AVCaptureFlashModeOff];
-  } else {
-    [device setTorchModeOnWithLevel:AVCaptureMaxAvailableTorchLevel error:nil];
-    [device setFlashMode:AVCaptureFlashModeOn];
-  }
-  [device unlockForConfiguration];
+    AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+    NSError *error = nil;
+
+    if ([device hasTorch] && [device isTorchAvailable]) {
+        if ([device lockForConfiguration:&error]) {
+            if (device.isTorchActive) {
+                [device setTorchMode:AVCaptureTorchModeOff];
+            } else {
+                [device setTorchModeOnWithLevel:AVCaptureMaxAvailableTorchLevel error:nil];
+            }
+            [device unlockForConfiguration];
+        } else {
+            NSLog(@"Error locking device for configuration: %@", error.localizedDescription);
+        }
+    }
 }
+
+
 
 //--------------------------------------------------------------------------
 - (NSString*)setUpCaptureSession {
@@ -486,13 +493,16 @@ parentViewController:(UIViewController*)parentViewController
 
        AVCaptureDevice* __block device = nil;
     if (self.isFrontCamera) {
-
-        NSArray* devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
-        [devices enumerateObjectsUsingBlock:^(AVCaptureDevice *obj, NSUInteger idx, BOOL *stop) {
+        AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession
+            discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInWideAngleCamera]
+                                  mediaType:AVMediaTypeVideo
+                                   position:AVCaptureDevicePositionFront];
+        for (AVCaptureDevice *obj in discoverySession.devices) {
             if (obj.position == AVCaptureDevicePositionFront) {
                 device = obj;
+                break;
             }
-        }];
+        }
     } else {
         device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
         if (!device) return @"unable to obtain video capture device";
